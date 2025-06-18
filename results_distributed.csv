@@ -1,0 +1,6 @@
+Matrix Size,Execution Time (ms),Memory Used (MB),CPU Usage (%),Nodes Used,Transfer Time (ms)
+256,349,5,68,15,07,1,0
+512,403,13,87,73,27,1,0
+1024,426,31,59,85,53,1,0
+2048,736,130,22,76,75,1,0
+4096,1816,489,75,61,48,1,0

@@ -15,23 +15,15 @@
     </properties>
 
     <dependencies>
-        <!-- Hazelcast Core -->
+        <!-- Hazelcast Server (para miembros del clúster) -->
         <dependency>
             <groupId>com.hazelcast</groupId>
             <artifactId>hazelcast</artifactId>
             <version>5.3.6</version>
         </dependency>
 
-        <!-- Para métricas de sistema -->
-        <dependency>
-            <groupId>com.sun</groupId>
-            <artifactId>tools</artifactId>
-            <version>1.8.0</version>
-            <scope>system</scope>
-            <systemPath>${java.home}/../lib/tools.jar</systemPath>
-        </dependency>
 
-        <!-- Logging (opcional, útil para Hazelcast) -->
+        <!-- Logging simple -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
@@ -41,7 +33,6 @@
 
     <build>
         <plugins>
-            <!-- Compilador Java -->
             <plugin>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.11.0</version>
@@ -50,7 +41,6 @@
                 </configuration>
             </plugin>
 
-            <!-- JAR ejecutable (fat jar) -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -58,7 +48,9 @@
                 <executions>
                     <execution>
                         <phase>package</phase>
-                        <goals><goal>shade</goal></goals>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
                         <configuration>
                             <createDependencyReducedPom>false</createDependencyReducedPom>
                             <transformers>

@@ -1,0 +1,2 @@
+Error: Could not find or load main class com.hazelcast.core.server.StartServer
+Caused by: java.lang.ClassNotFoundException: com.hazelcast.core.server.StartServer
