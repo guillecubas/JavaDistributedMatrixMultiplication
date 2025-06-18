@@ -1,0 +1,24 @@
+version: '3.9'
+
+services:
+  hazelcast-member-1:
+    image: hazelcast/hazelcast:5.3
+    environment:
+      - HZ_CLUSTERNAME=matrix-cluster
+
+  hazelcast-member-2:
+    image: hazelcast/hazelcast:5.3
+    environment:
+      - HZ_CLUSTERNAME=matrix-cluster
+
+  benchmark-runner:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    environment:
+      - JAVA_OPTS=-Dhazelcast.cluster.name=matrix-cluster
+    depends_on:
+      - hazelcast-member-1
+      - hazelcast-member-2
+    volumes:
+      - ../results:/app/results
