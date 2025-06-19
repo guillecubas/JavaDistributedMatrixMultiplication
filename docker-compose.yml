@@ -2,12 +2,17 @@ version: '3'
 services:
   node1:
     build: .
+    environment:
+      - JAVA_OPTS=-Xms2g -Xmx4g
     networks:
       - hazelcast-net
     volumes:
       - ./output:/app/output
+
   node2:
     build: .
+    environment:
+      - JAVA_OPTS=-Xms2g -Xmx4g
     networks:
       - hazelcast-net
     volumes:
