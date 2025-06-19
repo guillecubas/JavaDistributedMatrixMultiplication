@@ -6,6 +6,7 @@ import com.hazelcast.map.IMap;
 import com.sun.management.OperatingSystemMXBean;
 
 import java.lang.management.ManagementFactory;
+import java.util.Locale;
 import java.util.UUID;
 
 public class BenchmarkRunner {
@@ -13,34 +14,77 @@ public class BenchmarkRunner {
         HazelcastInstance hazelcastInstance = null;
 
         try {
-            // ⚙️ Crea nodo embebido (no cliente)
             hazelcastInstance = Hazelcast.newHazelcastInstance();
 
             Runtime runtime = Runtime.getRuntime();
             OperatingSystemMXBean osBean = ManagementFactory.getPlatformMXBean(OperatingSystemMXBean.class);
 
-            int[] sizes = {256, 512, 1024};  // Puedes ampliar si lo deseas
+            int[] sizes = {256, 512, 1024, 2048};
             String[] headers = {
-                    "Matrix Size", "Execution Time (ms)", "Memory Used (MB)",
+                    "Matrix Size", "Version", "Execution Time (ms)", "Memory Used (MB)",
                     "CPU Usage (%)", "Nodes Used", "Transfer Time (ms)"
             };
-            String outputPath = "output/results_distributed.csv";
+            String outputPath = "output/results_all_versions.csv";
 
             CSVWriterUtility.writeHeadersIfNotExists(outputPath, headers);
 
             for (int size : sizes) {
-                System.out.println("Multiplying matrices of size " + size + "x" + size);
+                System.out.println("\n===> Benchmark for size: " + size + "x" + size);
 
                 double[][] A = MatrixGenerator.generate(size, size);
                 double[][] B = MatrixGenerator.generate(size, size);
 
+                // --- Basic ---
+                System.out.println("→ Running Basic Multiplication");
                 runtime.gc();
                 long memBefore = runtime.totalMemory() - runtime.freeMemory();
-                double cpuBefore = osBean.getSystemCpuLoad();
+                double cpuBefore = getSafeCpuLoad(osBean);
+
+                long start = System.currentTimeMillis();
+                double[][] basicResult = BasicMatrixMultiplication.multiply(A, B);
+                long end = System.currentTimeMillis();
+                long execTime = end - start;
+
+                long memAfter = runtime.totalMemory() - runtime.freeMemory();
+                double memUsedMB = (memAfter - memBefore) / (1024.0 * 1024);
+                double cpuUsed = getSafeCpuLoad(osBean) * 100;
+
+                CSVWriterUtility.appendBenchmark(outputPath, new String[]{
+                        String.valueOf(size), "basic", String.valueOf(execTime),
+                        String.format(Locale.US, "%.2f", memUsedMB),
+                        String.format(Locale.US, "%.2f", cpuUsed),
+                        "1", "0"
+                });
+
+                // --- Parallel ---
+                System.out.println("→ Running Parallel Multiplication");
+                runtime.gc();
+                memBefore = runtime.totalMemory() - runtime.freeMemory();
+
+                start = System.currentTimeMillis();
+                double[][] parallelResult = ParallelMatrixMultiplication.multiply(A, B);
+                end = System.currentTimeMillis();
+                execTime = end - start;
+
+                memAfter = runtime.totalMemory() - runtime.freeMemory();
+                memUsedMB = (memAfter - memBefore) / (1024.0 * 1024);
+                cpuUsed = getSafeCpuLoad(osBean) * 100;
+
+                CSVWriterUtility.appendBenchmark(outputPath, new String[]{
+                        String.valueOf(size), "parallel", String.valueOf(execTime),
+                        String.format(Locale.US, "%.2f", memUsedMB),
+                        String.format(Locale.US, "%.2f", cpuUsed),
+                        "1", "0"
+                });
+
+                // --- Distributed ---
+                System.out.println("→ Running Distributed Multiplication");
+                runtime.gc();
+                memBefore = runtime.totalMemory() - runtime.freeMemory();
 
                 IMap<String, double[][]> map = hazelcastInstance.getMap("matrices");
-
                 String id = UUID.randomUUID().toString();
+
                 long transferStart = System.currentTimeMillis();
                 map.put(id + "_A", A);
                 map.put(id + "_B", B);
@@ -49,28 +93,23 @@ public class BenchmarkRunner {
 
                 int nodesUsed = hazelcastInstance.getCluster().getMembers().size();
 
-                long start = System.currentTimeMillis();
-                double[][] result = DistributedMatrixMultiplication.multiply(A, B, hazelcastInstance);
-                long end = System.currentTimeMillis();
-                long execTime = end - start;
+                start = System.currentTimeMillis();
+                double[][] distResult = DistributedMatrixMultiplication.multiply(A, B, hazelcastInstance);
+                end = System.currentTimeMillis();
+                execTime = end - start;
 
-                long memAfter = runtime.totalMemory() - runtime.freeMemory();
-                double memUsedMB = (memAfter - memBefore) / (1024.0 * 1024);
-                double cpuUsed = osBean.getSystemCpuLoad() * 100;
+                memAfter = runtime.totalMemory() - runtime.freeMemory();
+                memUsedMB = (memAfter - memBefore) / (1024.0 * 1024);
+                cpuUsed = getSafeCpuLoad(osBean) * 100;
 
-                String[] row = {
-                        String.valueOf(size),
-                        String.valueOf(execTime),
-                        String.format("%.2f", memUsedMB),
-                        String.format("%.2f", cpuUsed),
-                        String.valueOf(nodesUsed),
-                        String.valueOf(transferTime)
-                };
-                CSVWriterUtility.appendBenchmark(outputPath, row);
-
-                System.out.printf("✔ %dx%d completed: %d ms | %.2f MB | %.2f%% CPU | %d nodes | %d ms transfer\n",
-                        size, size, execTime, memUsedMB, cpuUsed, nodesUsed, transferTime);
+                CSVWriterUtility.appendBenchmark(outputPath, new String[]{
+                        String.valueOf(size), "distributed", String.valueOf(execTime),
+                        String.format(Locale.US, "%.2f", memUsedMB),
+                        String.format(Locale.US, "%.2f", cpuUsed),
+                        String.valueOf(nodesUsed), String.valueOf(transferTime)
+                });
             }
+
         } catch (Exception e) {
             System.err.println("❌ Error during benchmark: " + e.getMessage());
             e.printStackTrace();
@@ -79,5 +118,18 @@ public class BenchmarkRunner {
                 hazelcastInstance.shutdown();
             }
         }
+    }
+
+    // Retry until valid CPU load is obtained (avoid -1.0)
+    private static double getSafeCpuLoad(OperatingSystemMXBean osBean) {
+        double load = osBean.getSystemCpuLoad();
+        int retries = 0;
+        while ((load < 0 || Double.isNaN(load)) && retries++ < 5) {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException ignored) {}
+            load = osBean.getSystemCpuLoad();
+        }
+        return Math.max(load, 0);
     }
 }

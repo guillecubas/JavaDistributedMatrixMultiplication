@@ -1,0 +1,17 @@
+version: '3'
+services:
+  node1:
+    build: .
+    networks:
+      - hazelcast-net
+    volumes:
+      - ./output:/app/output
+  node2:
+    build: .
+    networks:
+      - hazelcast-net
+    volumes:
+      - ./output:/app/output
+
+networks:
+  hazelcast-net:
